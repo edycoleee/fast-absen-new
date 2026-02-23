@@ -1,0 +1,49 @@
+# ============================================================
+# FastAPI
+# ============================================================
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-dotenv==1.0.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# ============================================================
+# Database
+# ============================================================
+SQLAlchemy==2.0.25
+psycopg2-binary==2.9.9
+pgvector==0.2.5           # pgvector SQLAlchemy integration (for VECTOR type)
+
+# ============================================================
+# Authentication & Security
+# ============================================================
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# ============================================================
+# Utilities
+# ============================================================
+email-validator==2.1.0
+Pillow==10.2.0
+APScheduler==3.10.4
+openpyxl==3.1.5
+
+# ============================================================
+# Face Recognition — InsightFace (ArcFace / buffalo_l)
+# ============================================================
+# IMPORTANT: numpy must be <2.0 for onnxruntime + opencv + insightface compatibility
+numpy>=1.24.0,<2.0.0
+insightface>=0.7.3
+onnxruntime>=1.16.0,<2.0.0
+
+# ============================================================
+# Computer Vision
+# ============================================================
+# opencv 4.9 requires numpy <2.0 — do NOT upgrade to 4.10+
+opencv-python-headless==4.9.0.80
+
+# ============================================================
+# Machine Learning
+# ============================================================
+scikit-learn>=1.3.0

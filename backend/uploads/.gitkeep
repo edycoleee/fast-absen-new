@@ -1,0 +1,7 @@
+This directory is created automatically at runtime.
+
+Structure:
+  uploads/
+  ├── faces/          # Face images for enrollment (per user_id)
+  │   └── {user_id}/
+  └── foto_pegawai/   # Employee profile photos
