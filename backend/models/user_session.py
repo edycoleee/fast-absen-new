@@ -1,16 +1,16 @@
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Integer, Text, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, func
 from models.base import BaseModel
 
 
 class UserSession(BaseModel):
     __tablename__ = "user_sessions"
 
-    id_pegawai:   Mapped[str]            = mapped_column(String(20), ForeignKey("pegawai.id_pegawai", ondelete="CASCADE"), nullable=False)
+    user_id:      Mapped[int]            = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     session_id:   Mapped[Optional[str]]  = mapped_column(String(255), unique=True, index=True)
-    access_token: Mapped[Optional[str]]  = mapped_column(Text)
+    token:        Mapped[Optional[str]]  = mapped_column(Text)
 
     device_type:  Mapped[Optional[str]]  = mapped_column(String(20))
     user_agent:   Mapped[Optional[str]]  = mapped_column(Text)

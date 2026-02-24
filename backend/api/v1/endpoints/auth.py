@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.database import get_db
-from schemas.auth import LoginRequest, TokenResponse
+from schemas.auth import LoginRequest, LoginFaceRequest, TokenResponse
 from services.auth_service import AuthService
 from utils.response import success_response
 from utils.dependencies import get_current_user
@@ -35,6 +35,42 @@ async def login(
         permissions=list(user.permissions),
         menu_guard=build_menu_guard(user),
     ).model_dump())
+
+
+@router.post("/login-face")
+async def login_face(
+    body: LoginFaceRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Login menggunakan verifikasi wajah 1:1.
+
+    User memasukkan username + gambar wajah (base64).  Backend memverifikasi
+    apakah wajah cocok dengan embedding yang terdaftar untuk username tersebut.
+    Berhasil → JWT token dikembalikan sama seperti login password.
+    """
+    svc = AuthService(db)
+    user, token, session, similarity = await svc.login_face(
+        body.username,
+        body.face_image_b64,
+        request,
+        device_type=body.device_type or "web",
+        threshold=body.threshold,
+    )
+    return success_response(SuccessMessages.LOGIN, data={
+        **TokenResponse(
+            access_token=token,
+            token_type="bearer",
+            expires_in=ACCESS_TOKEN_EXPIRE * 60,
+            user_id=user.id,
+            username=user.username,
+            roles=[r.name for r in user.roles],
+            permissions=list(user.permissions),
+            menu_guard=build_menu_guard(user),
+        ).model_dump(),
+        "confidence": round(similarity, 4),
+    })
 
 
 @router.post("/logout")

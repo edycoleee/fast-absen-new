@@ -5,7 +5,7 @@ from schemas.base import BaseSchema, BaseResponseSchema
 
 
 class UserSessionOut(BaseResponseSchema):
-    id_pegawai: str
+    user_id: int
     session_id: Optional[str] = None
     device_type: Optional[str] = None
     browser: Optional[str] = None

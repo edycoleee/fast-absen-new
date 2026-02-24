@@ -132,11 +132,11 @@ CREATE TABLE user_roles (
 -- ============================================================
 CREATE TABLE user_sessions (
     id           SERIAL PRIMARY KEY,
-    id_pegawai   VARCHAR(20) NOT NULL REFERENCES pegawai(id_pegawai) ON DELETE CASCADE,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
     -- Session Management
     session_id   VARCHAR(255) UNIQUE,
-    access_token TEXT,                          -- JWT stored hashed
+    token        TEXT,                          -- JWT (hashed or raw)
 
     -- Device & Browser Info
     device_type  VARCHAR(20)  CHECK (device_type IN ('web', 'mobile', 'tablet')),
@@ -164,7 +164,7 @@ CREATE TABLE user_sessions (
     login_method VARCHAR(20) DEFAULT 'password'
         CHECK (login_method IN ('password', 'face', 'password_face')),
     login_status VARCHAR(20) DEFAULT 'success'
-        CHECK (login_status IN ('success', 'failed', 'blocked')),
+        CHECK (login_status IN ('success', 'failed', 'expired')),
     failed_reason TEXT,
 
     -- Metadata
@@ -172,11 +172,11 @@ CREATE TABLE user_sessions (
     updated_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_sessions_pegawai    ON user_sessions(id_pegawai);
+CREATE INDEX idx_sessions_user_id    ON user_sessions(user_id);
 CREATE INDEX idx_sessions_session_id ON user_sessions(session_id);
 CREATE INDEX idx_sessions_ip         ON user_sessions(ip_address);
 CREATE INDEX idx_sessions_login_at   ON user_sessions(login_at DESC);
-CREATE INDEX idx_sessions_active     ON user_sessions(id_pegawai) WHERE logout_at IS NULL;
+CREATE INDEX idx_sessions_active     ON user_sessions(user_id) WHERE logout_at IS NULL;
 
 CREATE TRIGGER set_sessions_updated_at
     BEFORE UPDATE ON user_sessions

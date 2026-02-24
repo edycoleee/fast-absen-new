@@ -14,6 +14,7 @@ class LoginFaceRequest(BaseModel):
     username: str
     face_image_b64: str
     device_type: Optional[str] = "web"
+    threshold: Optional[float] = None   # default: FaceService.THRESHOLD (0.4)
     uid: Optional[str] = None
     player_id: Optional[str] = None
 
