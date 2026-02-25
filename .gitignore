@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.Python
+.venv/
+venv/
+.env
+.env.*
+
+# Flask
+instance/
+*.sqlite
+*.db
+
+# Logs
+*.log
+
+# Node / React
+node_modules/
+dist/
+build/
+.vite/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Tests / Coverage
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+
+# Docker SSL (local)
+docker/prod/ssl/*

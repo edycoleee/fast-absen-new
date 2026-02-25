@@ -1,0 +1,71 @@
+# ============================================================
+# DATABASE SERVICE ONLY
+# ============================================================
+# PostgreSQL + pgAdmin for attendance face recognition system
+# Usage: docker-compose up -d
+# ============================================================
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: attendance-db-postgres
+    env_file:
+      - .env
+    environment:
+      # PostgreSQL configuration
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+      # Timezone
+      TZ: Asia/Jakarta
+    ports:
+      - "${DOCKER_HOST_IP:-0.0.0.0}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Init script for first-time setup
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      # Persistent data storage
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - pg_network
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: attendance-db-pgadmin
+    env_file:
+      - .env
+    environment:
+      # pgAdmin configuration
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_LISTEN_ADDRESS: 0.0.0.0
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "${DOCKER_HOST_IP:-0.0.0.0}:${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pg_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  pg_network:
+    name: pg_network
+    driver: bridge
