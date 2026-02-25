@@ -13,6 +13,12 @@ class RoleService(BaseService[Role, RoleRepository]):
     async def get_all_with_permissions(self) -> List[Role]:
         return await self.repo.get_all_with_permissions()
 
+    async def get_role(self, role_id: int) -> Role:
+        role = await self.repo.get_by_id_with_permissions(role_id)
+        if not role:
+            raise HTTPException(status_code=HC.NOT_FOUND, detail=ErrorMessages.NOT_FOUND.format("Role"))
+        return role
+
     async def create_role(self, name: str, description: Optional[str], permission_ids: List[int]) -> Role:
         existing = await self.repo.get_by_name(name)
         if existing:
@@ -36,4 +42,7 @@ class RoleService(BaseService[Role, RoleRepository]):
         role = await self.repo.get_by_id(role_id)
         if not role:
             raise HTTPException(status_code=HC.NOT_FOUND, detail=ErrorMessages.NOT_FOUND.format("Role"))
+        count = await self.repo.count_users(role_id)
+        if count > 0:
+            raise HTTPException(status_code=HC.CONFLICT, detail=f"Tidak dapat menghapus role: masih ada {count} user menggunakan role ini.")
         return await self.repo.delete(role_id)

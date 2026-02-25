@@ -12,13 +12,14 @@ pydantic-settings==2.1.0
 # ============================================================
 SQLAlchemy==2.0.25
 psycopg2-binary==2.9.9
+asyncpg==0.29.0               # Async PostgreSQL driver for SQLAlchemy async engine
 pgvector==0.2.5           # pgvector SQLAlchemy integration (for VECTOR type)
 
 # ============================================================
 # Authentication & Security
 # ============================================================
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+bcrypt>=4.0.0                 # Direct bcrypt usage (passlib 1.7.4 incompatible with bcrypt>=4)
 python-multipart==0.0.6
 
 # ============================================================
@@ -28,6 +29,14 @@ email-validator==2.1.0
 Pillow==10.2.0
 APScheduler==3.10.4
 openpyxl==3.1.5
+
+# ============================================================
+# Testing
+# ============================================================
+pytest==8.3.4
+pytest-asyncio==0.24.0
+httpx==0.27.2
+aiosqlite==0.20.0         # Async SQLite driver (kept for future use)
 
 # ============================================================
 # Face Recognition — InsightFace (ArcFace / buffalo_l)

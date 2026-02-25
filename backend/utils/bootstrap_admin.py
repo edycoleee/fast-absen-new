@@ -22,13 +22,18 @@ async def bootstrap_superadmin(db: AsyncSession) -> None:
         pegawai = await db.get(Pegawai, settings.ADMIN_ID_PEGAWAI)
         if not pegawai:
             from datetime import date
+            tanggal_lahir = (
+                date.fromisoformat(settings.ADMIN_TANGGAL_LAHIR)
+                if settings.ADMIN_TANGGAL_LAHIR
+                else None
+            )
             pegawai = Pegawai(
                 id_pegawai=settings.ADMIN_ID_PEGAWAI,
                 nip=settings.ADMIN_NIP,
                 nama=settings.ADMIN_NAMA,
                 jenis_kelamin=settings.ADMIN_JENIS_KELAMIN,
                 tempat_lahir=settings.ADMIN_TEMPAT_LAHIR,
-                tanggal_lahir=settings.ADMIN_TANGGAL_LAHIR,
+                tanggal_lahir=tanggal_lahir,
                 alamat=settings.ADMIN_ALAMAT,
                 status=settings.ADMIN_STATUS,
             )

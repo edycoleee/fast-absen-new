@@ -15,8 +15,8 @@ class UserRoleEnum(str, Enum):
 
 class Gender(str, Enum):
     """Jenis kelamin"""
-    LAKI_LAKI = "Laki-laki"
-    PEREMPUAN = "Perempuan"
+    MALE   = "MALE"
+    FEMALE = "FEMALE"
 
 
 class LoginMethod(str, Enum):
@@ -35,12 +35,12 @@ class LoginStatus(str, Enum):
 
 class AbsensiStatus(str, Enum):
     """Attendance record status"""
-    HADIR = "HADIR"
-    TERLAMBAT = "TERLAMBAT"
-    IZIN = "IZIN"
-    SAKIT = "SAKIT"
-    ALPHA = "ALPHA"
-    CUTI = "CUTI"
+    PRESENT  = "PRESENT"
+    LATE     = "LATE"
+    PERMITTED = "PERMITTED"
+    SICK     = "SICK"
+    ABSENT   = "ABSENT"
+    LEAVE    = "LEAVE"
 
 
 # ============================================================
@@ -56,6 +56,7 @@ class HTTPStatus:
     UNAUTHORIZED = 401
     FORBIDDEN = 403
     NOT_FOUND = 404
+    CONFLICT = 409
     UNPROCESSABLE_ENTITY = 422
     INTERNAL_SERVER_ERROR = 500
 

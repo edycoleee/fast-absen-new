@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Integer, DateTime, func
+from sqlalchemy import Boolean, String, Integer, DateTime, func
 from config.database import Base
 
 
@@ -10,7 +10,7 @@ class Unit(Base):
 
     id_unit:   Mapped[int]  = mapped_column(Integer, primary_key=True)
     nama_unit: Mapped[str]  = mapped_column(String(150), unique=True, nullable=False)
-    status:    Mapped[str]  = mapped_column(String(20), default="Aktif", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

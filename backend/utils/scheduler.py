@@ -20,7 +20,7 @@ scheduler = AsyncIOScheduler()
 async def _cleanup_expired_sessions():
     """
     Job: hapus sesi yang sudah idle melebihi SESSION_EXPIRY_HOURS.
-    Dipanggil otomatis oleh scheduler setiap SESSION_CLEANUP_INTERVAL_HOURS.
+    Dipanggil otomatis oleh scheduler setiap SESSION_CLEANUP_INTERVAL_MINUTES.
     """
     expiry_hours = settings.SESSION_EXPIRY_HOURS
     cutoff = datetime.now(timezone.utc) - timedelta(hours=expiry_hours)
@@ -48,17 +48,17 @@ def start_scheduler():
     Dipanggil saat aplikasi startup.
     """
     try:
-        interval_hours = settings.SESSION_CLEANUP_INTERVAL_HOURS
+        interval_minutes = settings.SESSION_CLEANUP_INTERVAL_MINUTES
         scheduler.add_job(
             func=_cleanup_expired_sessions,
-            trigger=IntervalTrigger(hours=interval_hours),
+            trigger=IntervalTrigger(minutes=interval_minutes),
             id="cleanup_expired_sessions",
             name="Cleanup expired user sessions",
             replace_existing=True,
         )
         scheduler.start()
         logger.info(
-            f"[Scheduler] Started — session cleanup setiap {interval_hours} jam, "
+            f"[Scheduler] Started — session cleanup setiap {interval_minutes} menit, "
             f"threshold idle > {settings.SESSION_EXPIRY_HOURS} jam"
         )
     except Exception as exc:

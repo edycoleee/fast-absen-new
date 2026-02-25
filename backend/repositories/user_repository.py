@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from repositories.base import BaseRepository
@@ -7,6 +7,7 @@ from models.user import User
 from models.user_role import UserRole
 from models.role import Role
 from models.pegawai import Pegawai
+from models.user_session import UserSession
 
 
 class UserRepository(BaseRepository[User]):
@@ -39,6 +40,13 @@ class UserRepository(BaseRepository[User]):
     async def get_by_pegawai_id(self, id_pegawai: str) -> Optional[User]:
         result = await self.db.execute(select(User).where(User.id_pegawai == id_pegawai))
         return result.scalar_one_or_none()
+
+    async def count_active_sessions(self, user_id: int) -> int:
+        result = await self.db.execute(
+            select(func.count()).select_from(UserSession)
+            .where(UserSession.user_id == user_id, UserSession.logout_at.is_(None))
+        )
+        return result.scalar() or 0
 
     async def sync_roles(self, user_id: int, role_ids: List[int]) -> None:
         await self.db.execute(delete(UserRole).where(UserRole.user_id == user_id))

@@ -12,7 +12,7 @@ async def halo():
 
 @router.get("/health")
 async def health_check():
-    db_ok = await check_database_connection()
+    db_ok = check_database_connection()
     return success_response("OK", data={
         "status": "healthy" if db_ok else "degraded",
         "database": "connected" if db_ok else "disconnected",
@@ -21,5 +21,5 @@ async def health_check():
 
 @router.get("/db-info")
 async def db_info():
-    info = await get_database_info()
+    info = get_database_info()
     return success_response("OK", data=info)

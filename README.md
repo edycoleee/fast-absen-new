@@ -96,6 +96,61 @@ Dokumentasi API tersedia di: http://localhost:8000/docs
 
 ## Test
 
+Pastikan server **tidak** sedang berjalan di port 8000 sebelum menjalankan test.
+
+Test suite tidak mengirim request HTTP sungguhan ke jaringan. Sebagai gantinya,
+`httpx.AsyncClient` dipasangkan langsung ke objek aplikasi FastAPI melalui
+`ASGITransport` — request diproses di dalam proses Python yang sama tanpa membuka
+socket atau port. Artinya: server tidak perlu dinyalakan, test lebih cepat, dan
+tidak ada konflik port. Port 8000 tetap perlu bebas hanya jika ada kode yang
+secara eksplisit mencoba bind ke sana saat import (yang tidak terjadi di sini).
+
+### Jalankan semua test
+
 ```bash
+cd backend
+source venv/bin/activate
 pytest tests/ -v
 ```
+
+### Jalankan test tertentu
+
+```bash
+# Hanya health check
+pytest tests/test_health.py -v
+
+# Hanya auth
+pytest tests/test_auth.py -v
+
+# Satu test spesifik
+pytest tests/test_auth.py::test_login_admin_success -v
+```
+
+### Opsi berguna
+
+```bash
+# Tampilkan print/log output
+pytest tests/ -v -s
+
+# Berhenti di failure pertama
+pytest tests/ -v -x
+
+# Tampilkan 10 test terlambat
+pytest tests/ -v --durations=10
+
+# Hanya re-run test yang gagal sebelumnya
+pytest tests/ -v --lf
+```
+
+### Struktur fixture
+
+| Fixture | Digunakan untuk |
+|---------|----------------|
+| `client` | Test tanpa data (health check, validasi 422) |
+| `client_with_db` | Test yang butuh user `tst_admin` / `tst_user` di DB |
+| `db_with_data` | Setup otomatis — seed + cleanup test data di PostgreSQL |
+| `admin_token` | JWT token untuk `tst_admin` |
+| `user_token` | JWT token untuk `tst_user` |
+
+> Test menggunakan PostgreSQL nyata (bukan SQLite). Pastikan DB aktif dan
+> konfigurasi `.env` sudah benar sebelum menjalankan test.

@@ -18,5 +18,19 @@ class UnitRepository(BaseRepository[Unit]):
         return result.scalar_one_or_none()
 
     async def get_all_aktif(self) -> List[Unit]:
-        result = await self.db.execute(select(Unit).where(Unit.status == "Aktif"))
+        result = await self.db.execute(select(Unit).where(Unit.is_active == True))
         return list(result.scalars().all())
+
+    async def count_pegawai(self, id_unit: int) -> int:
+        """Hitung jumlah pegawai yang masih terhubung ke unit ini (id_unit atau kepala_id_unit)."""
+        from sqlalchemy import func, or_
+        from models.pegawai import Pegawai
+        result = await self.db.execute(
+            select(func.count()).select_from(Pegawai).where(
+                or_(
+                    Pegawai.id_unit == id_unit,
+                    Pegawai.kepala_id_unit == id_unit,
+                )
+            )
+        )
+        return result.scalar() or 0

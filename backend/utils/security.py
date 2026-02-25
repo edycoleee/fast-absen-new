@@ -8,23 +8,21 @@ JWT payload yang digunakan mengikuti RFC 7519:
   - iss  : issuer (JWT_ISSUER dari settings)
   - aud  : audience (JWT_AUDIENCE dari settings)
 """
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 from jose import jwt, JWTError
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from config.settings import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def hash_password(password: str) -> str:
     """Hash plain-text password menggunakan bcrypt."""
-    return pwd_context.hash(password)
+    return _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Verifikasi plain-text password terhadap hash yang tersimpan."""
-    return pwd_context.verify(plain, hashed)
+    return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
 def create_access_token(

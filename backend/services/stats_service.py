@@ -14,7 +14,7 @@ class StatsService:
     async def get_overview(self) -> StatsOverview:
         today = date.today()
         total_pegawai = (await self.db.execute(
-            select(func.count()).select_from(Pegawai).where(Pegawai.status == "Aktif")
+            select(func.count()).select_from(Pegawai).where(Pegawai.is_active == True)
         )).scalar() or 0
 
         def _count_status(s):
@@ -22,11 +22,11 @@ class StatsService:
                 and_(Absensi.tanggal == today, Absensi.status == s)
             )
 
-        hadir = (await self.db.execute(_count_status("HADIR"))).scalar() or 0
-        terlambat = (await self.db.execute(_count_status("TERLAMBAT"))).scalar() or 0
-        izin = (await self.db.execute(_count_status("IZIN"))).scalar() or 0
-        sakit = (await self.db.execute(_count_status("SAKIT"))).scalar() or 0
-        alpha = (await self.db.execute(_count_status("ALPHA"))).scalar() or 0
+        hadir     = (await self.db.execute(_count_status("PRESENT"))).scalar()  or 0
+        terlambat = (await self.db.execute(_count_status("LATE"))).scalar()     or 0
+        izin      = (await self.db.execute(_count_status("PERMITTED"))).scalar() or 0
+        sakit     = (await self.db.execute(_count_status("SICK"))).scalar()     or 0
+        alpha     = (await self.db.execute(_count_status("ABSENT"))).scalar()   or 0
         total_absen = hadir + terlambat + izin + sakit + alpha
         belum = max(0, total_pegawai - total_absen)
 

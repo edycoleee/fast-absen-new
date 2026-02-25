@@ -81,6 +81,8 @@ class PermissionKeys:
     FACE_VERIFY = "face.verify"
     FACE_MANAGE = "face.manage"
     USER_SESSIONS_READ = "user_sessions.read"
+    USER_SESSIONS_CREATE = "user_sessions.create"
+    USER_SESSIONS_UPDATE = "user_sessions.update"
     USER_SESSIONS_DELETE = "user_sessions.delete"
     REPORT_READ = "report.read"
     LOGIN_ABSENSI_READ = "login_absensi.read"

@@ -15,7 +15,7 @@ class PegawaiCreate(BaseSchema):
     tempat_lahir: Optional[str] = None
     tanggal_lahir: Optional[date] = None
     alamat: Optional[str] = None
-    status: str = "Aktif"
+    is_active: bool = True
 
 
 class PegawaiUpdate(BaseSchema):
@@ -27,7 +27,7 @@ class PegawaiUpdate(BaseSchema):
     tempat_lahir: Optional[str] = None
     tanggal_lahir: Optional[date] = None
     alamat: Optional[str] = None
-    status: Optional[str] = None
+    is_active: Optional[bool] = None
     foto: Optional[str] = None
 
 
@@ -41,7 +41,7 @@ class PegawaiOut(BaseSchema):
     tempat_lahir: Optional[str] = None
     tanggal_lahir: Optional[date] = None
     alamat: Optional[str] = None
-    status: str
+    is_active: bool
     foto: Optional[str] = None
     created_at: datetime
     updated_at: datetime

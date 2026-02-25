@@ -16,7 +16,7 @@ class Absensi(BaseModel):
     face_verified_keluar:   Mapped[bool]            = mapped_column(Boolean, default=False)
     face_similarity_masuk:  Mapped[Optional[float]] = mapped_column(Float)
     face_similarity_keluar: Mapped[Optional[float]] = mapped_column(Float)
-    status:                 Mapped[str]             = mapped_column(String(20), default="HADIR", nullable=False)
+    status:                 Mapped[str]             = mapped_column(String(20), default="PRESENT", nullable=False)
     keterangan:             Mapped[Optional[str]]   = mapped_column(Text)
     dokumen_pendukung:      Mapped[Optional[str]]   = mapped_column(String(255))
     ip_address:             Mapped[Optional[str]]   = mapped_column(String(45))

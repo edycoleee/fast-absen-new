@@ -20,4 +20,7 @@ class PermissionService(BaseService[Permission, PermissionRepository]):
         perm = await self.repo.get_by_id(perm_id)
         if not perm:
             raise HTTPException(status_code=HC.NOT_FOUND, detail=ErrorMessages.NOT_FOUND.format("Permission"))
+        count = await self.repo.count_roles(perm_id)
+        if count > 0:
+            raise HTTPException(status_code=HC.CONFLICT, detail=f"Tidak dapat menghapus permission: masih digunakan oleh {count} role.")
         return await self.repo.delete(perm_id)

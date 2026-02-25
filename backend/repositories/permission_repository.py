@@ -1,8 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from typing import Optional, List
 from repositories.base import BaseRepository
 from models.permission import Permission
+from models.role_permission import RolePermission
 
 
 class PermissionRepository(BaseRepository[Permission]):
@@ -20,3 +21,9 @@ class PermissionRepository(BaseRepository[Permission]):
     async def get_all_names(self) -> List[str]:
         result = await self.db.execute(select(Permission.name))
         return [row[0] for row in result.all()]
+
+    async def count_roles(self, perm_id: int) -> int:
+        result = await self.db.execute(
+            select(func.count()).select_from(RolePermission).where(RolePermission.permission_id == perm_id)
+        )
+        return result.scalar() or 0

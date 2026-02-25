@@ -1,7 +1,7 @@
 from datetime import datetime, date
 from typing import Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Integer, Date, Text, DateTime, ForeignKey, func
+from sqlalchemy import Boolean, String, Integer, Date, Text, DateTime, ForeignKey, func
 from config.database import Base
 
 
@@ -17,7 +17,7 @@ class Pegawai(Base):
     tempat_lahir:  Mapped[Optional[str]]    = mapped_column(String(100))
     tanggal_lahir: Mapped[Optional[date]]   = mapped_column(Date)
     alamat:        Mapped[Optional[str]]    = mapped_column(Text)
-    status:        Mapped[str]              = mapped_column(String(20), default="Aktif", nullable=False)
+    is_active:     Mapped[bool]             = mapped_column(Boolean, default=True, nullable=False)
     foto:          Mapped[Optional[str]]    = mapped_column(String(255))
     created_at:    Mapped[datetime]         = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at:    Mapped[datetime]         = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

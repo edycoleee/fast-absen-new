@@ -21,16 +21,52 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================
+-- UTILITY: cascade soft-delete pegawai → user
+--   When pegawai.is_active changes to FALSE,
+--   the linked user is also deactivated (is_active = FALSE).
+-- ============================================================
+CREATE OR REPLACE FUNCTION trigger_pegawai_softdelete_cascade()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.is_active = FALSE AND OLD.is_active = TRUE THEN
+        UPDATE users SET is_active = FALSE WHERE id_pegawai = NEW.id_pegawai;
+    END IF;
+    IF NEW.is_active = TRUE AND OLD.is_active = FALSE THEN
+        UPDATE users SET is_active = TRUE  WHERE id_pegawai = NEW.id_pegawai;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- UTILITY: cascade soft-delete user → sessions
+--   When users.is_active is set to FALSE,
+--   terminate all open sessions (set logout_at = NOW()).
+-- ============================================================
+CREATE OR REPLACE FUNCTION trigger_user_softdelete_cascade()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.is_active = FALSE AND OLD.is_active = TRUE THEN
+        UPDATE user_sessions
+        SET logout_at = NOW()
+        WHERE user_id = NEW.id AND logout_at IS NULL;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
 -- TABLE: unit  (Master Unit / Instalasi)
 -- ============================================================
 CREATE TABLE unit (
     id_unit   INTEGER PRIMARY KEY,
     nama_unit VARCHAR(150) UNIQUE NOT NULL,
-    status    VARCHAR(20)  NOT NULL DEFAULT 'Aktif'
-                CHECK (status IN ('Aktif', 'Tidak Aktif')),
+    is_active BOOLEAN      NOT NULL DEFAULT TRUE,            -- soft delete: FALSE
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX idx_unit_is_active ON unit(id_unit) WHERE is_active = TRUE;
 
 CREATE TRIGGER set_unit_updated_at
     BEFORE UPDATE ON unit
@@ -58,7 +94,8 @@ CREATE TABLE permissions (
     id          SERIAL PRIMARY KEY,
     name        VARCHAR(100) UNIQUE NOT NULL,   -- e.g. "absensi:read", "user:write"
     description TEXT,
-    created_at  TIMESTAMPTZ DEFAULT NOW()
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ============================================================
@@ -79,12 +116,11 @@ CREATE TABLE pegawai (
     nama          VARCHAR(255) NOT NULL,
     id_unit       INTEGER REFERENCES unit(id_unit) ON DELETE SET NULL,
     kepala_id_unit INTEGER REFERENCES unit(id_unit) ON DELETE SET NULL,
-    jenis_kelamin VARCHAR(10)  CHECK (jenis_kelamin IN ('Laki-Laki', 'Perempuan')),
+    jenis_kelamin VARCHAR(10)  CHECK (jenis_kelamin IN ('MALE', 'FEMALE')),
     tempat_lahir  VARCHAR(100),
     tanggal_lahir DATE,
     alamat        TEXT,
-    status        VARCHAR(20)  NOT NULL DEFAULT 'Aktif'
-                    CHECK (status IN ('Aktif', 'Non-Aktif')),
+    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,            -- soft delete: FALSE
     foto          VARCHAR(255),
     created_at    TIMESTAMPTZ DEFAULT NOW(),
     updated_at    TIMESTAMPTZ DEFAULT NOW()
@@ -92,11 +128,16 @@ CREATE TABLE pegawai (
 
 CREATE INDEX idx_pegawai_unit        ON pegawai(id_unit);
 CREATE INDEX idx_pegawai_kepala_unit ON pegawai(kepala_id_unit);
-CREATE INDEX idx_pegawai_status      ON pegawai(status);
+CREATE INDEX idx_pegawai_is_active   ON pegawai(is_active);
+CREATE INDEX idx_pegawai_aktif       ON pegawai(id_pegawai) WHERE is_active = TRUE;
 
 CREATE TRIGGER set_pegawai_updated_at
     BEFORE UPDATE ON pegawai
     FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+CREATE TRIGGER cascade_pegawai_softdelete
+    AFTER UPDATE OF is_active ON pegawai
+    FOR EACH ROW EXECUTE FUNCTION trigger_pegawai_softdelete_cascade();
 
 -- ============================================================
 -- TABLE: users
@@ -106,17 +147,22 @@ CREATE TABLE users (
     id_pegawai    VARCHAR(20) UNIQUE REFERENCES pegawai(id_pegawai) ON DELETE SET NULL,
     username      VARCHAR(100) UNIQUE NOT NULL,
     password_hash TEXT        NOT NULL,
-    is_active     BOOLEAN     DEFAULT TRUE,
+    is_active     BOOLEAN     DEFAULT TRUE,  -- soft delete: FALSE
     last_login    TIMESTAMPTZ,
     created_at    TIMESTAMPTZ DEFAULT NOW(),
     updated_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_users_pegawai ON users(id_pegawai);
+CREATE INDEX idx_users_pegawai    ON users(id_pegawai);
+CREATE INDEX idx_users_is_active  ON users(id) WHERE is_active = TRUE;
 
 CREATE TRIGGER set_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+CREATE TRIGGER cascade_user_softdelete
+    AFTER UPDATE OF is_active ON users
+    FOR EACH ROW EXECUTE FUNCTION trigger_user_softdelete_cascade();
 
 -- ============================================================
 -- TABLE: user_roles  (user <> role many-to-many)
@@ -146,7 +192,7 @@ CREATE TABLE user_sessions (
     device_model VARCHAR(250),
 
     -- Network Info
-    ip_address   INET NOT NULL,
+    ip_address   VARCHAR(45) NOT NULL,
     country      VARCHAR(100),
     city         VARCHAR(100),
 
@@ -198,12 +244,12 @@ CREATE TABLE absensi (
     face_similarity_masuk  FLOAT,             -- Cosine similarity saat check-in
     face_similarity_keluar FLOAT,             -- Cosine similarity saat check-out
 
-    status       VARCHAR(20)  NOT NULL DEFAULT 'HADIR'
-                    CHECK (status IN ('HADIR', 'IZIN', 'SAKIT', 'ALPHA', 'TERLAMBAT', 'CUTI')),
+    status       VARCHAR(20)  NOT NULL DEFAULT 'PRESENT'
+                    CHECK (status IN ('PRESENT', 'LATE', 'PERMITTED', 'SICK', 'ABSENT', 'LEAVE')),
     keterangan   TEXT,
     dokumen_pendukung VARCHAR(255),
 
-    ip_address   INET,
+    ip_address   VARCHAR(45),
     created_at   TIMESTAMPTZ DEFAULT NOW(),
     updated_at   TIMESTAMPTZ DEFAULT NOW(),
 
@@ -353,50 +399,50 @@ JOIN permissions p ON p.name IN (
 WHERE r.name = 'pegawai';
 
 -- Master unit
-INSERT INTO unit (id_unit, nama_unit, status) VALUES
-(1, 'Struktural', 'Aktif'),
-(2, 'Kepala Ruang / Kepala Instalasi', 'Aktif'),
-(3, 'Bidang Umum dan Kepegawaian', 'Aktif'),
-(4, 'Keuangan', 'Aktif'),
-(5, 'Instalasi SIMRS', 'Aktif'),
-(6, 'Adenium', 'Aktif'),
-(7, 'Poliklinik', 'Aktif'),
-(8, 'Tulip', 'Aktif'),
-(9, 'Anyelir', 'Aktif'),
-(10, 'Lavender', 'Aktif'),
-(11, 'Begonia', 'Aktif'),
-(12, 'Edelweiss', 'Aktif'),
-(13, 'Jasmine', 'Aktif'),
-(14, 'Azalea', 'Aktif'),
-(15, 'Instalasi Gawat Darurat', 'Aktif'),
-(16, 'Instalasi Pemulasaran Jenazah', 'Aktif'),
-(17, 'IPSRS', 'Aktif'),
-(18, 'Instalasi Gizi', 'Aktif'),
-(19, 'Loundry dan CSSD', 'Aktif'),
-(20, 'Laboratorium', 'Aktif'),
-(21, 'Farmasi', 'Aktif'),
-(22, 'Rekam Medis', 'Aktif'),
-(23, 'Radiologi', 'Aktif'),
-(24, 'Bidang Keperawatan', 'Aktif'),
-(25, 'Bidang Pelayanan', 'Aktif'),
-(26, 'Bidang Pengembangan RS, Humas, dan Rekam Medis', 'Aktif'),
-(27, 'MPP', 'Aktif'),
-(28, 'Bagian Program', 'Aktif'),
-(29, 'Tata Usaha', 'Aktif'),
-(30, 'Komite Keperawatan', 'Aktif'),
-(31, 'SIPP dan Informasi', 'Aktif'),
-(32, 'Kasir', 'Aktif'),
-(33, 'Pendaftaran TPPGD/TPPRI', 'Aktif'),
-(34, 'Rehabilitasi Medik', 'Aktif'),
-(35, 'Driver Ambulance', 'Aktif'),
-(36, 'Instalasi Bedah Sentral', 'Aktif'),
-(37, 'ICU', 'Aktif'),
-(38, 'Security', 'Aktif'),
-(39, 'Komite PPI', 'Aktif'),
-(40, 'Dokter Umum', 'Aktif'),
-(41, 'Pendaftaran TPPRJ', 'Aktif'),
-(42, 'Holding Bed', 'Aktif'),
-(43, 'Dokter Spesialis', 'Aktif'),
-(99, 'Z-Sudah Tidak Aktif', 'Aktif')
+INSERT INTO unit (id_unit, nama_unit) VALUES
+(1, 'Struktural'),
+(2, 'Kepala Ruang / Kepala Instalasi'),
+(3, 'Bidang Umum dan Kepegawaian'),
+(4, 'Keuangan'),
+(5, 'Instalasi SIMRS'),
+(6, 'Adenium'),
+(7, 'Poliklinik'),
+(8, 'Tulip'),
+(9, 'Anyelir'),
+(10, 'Lavender'),
+(11, 'Begonia'),
+(12, 'Edelweiss'),
+(13, 'Jasmine'),
+(14, 'Azalea'),
+(15, 'Instalasi Gawat Darurat'),
+(16, 'Instalasi Pemulasaran Jenazah'),
+(17, 'IPSRS'),
+(18, 'Instalasi Gizi'),
+(19, 'Loundry dan CSSD'),
+(20, 'Laboratorium'),
+(21, 'Farmasi'),
+(22, 'Rekam Medis'),
+(23, 'Radiologi'),
+(24, 'Bidang Keperawatan'),
+(25, 'Bidang Pelayanan'),
+(26, 'Bidang Pengembangan RS, Humas, dan Rekam Medis'),
+(27, 'MPP'),
+(28, 'Bagian Program'),
+(29, 'Tata Usaha'),
+(30, 'Komite Keperawatan'),
+(31, 'SIPP dan Informasi'),
+(32, 'Kasir'),
+(33, 'Pendaftaran TPPGD/TPPRI'),
+(34, 'Rehabilitasi Medik'),
+(35, 'Driver Ambulance'),
+(36, 'Instalasi Bedah Sentral'),
+(37, 'ICU'),
+(38, 'Security'),
+(39, 'Komite PPI'),
+(40, 'Dokter Umum'),
+(41, 'Pendaftaran TPPRJ'),
+(42, 'Holding Bed'),
+(43, 'Dokter Spesialis'),
+(99, 'Z-Sudah Tidak Aktif')
 ON CONFLICT (id_unit) DO NOTHING;
 

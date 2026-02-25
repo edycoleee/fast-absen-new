@@ -180,3 +180,60 @@ class AuthService:
             session.login_status = LoginStatus.EXPIRED
             await self.db.commit()
         return True
+
+    async def logout_by_session_id(self, session_id: str) -> bool:
+        """Invalidate a session identified by the session_id cookie value."""
+        session = await self.session_repo.get_by_session_id_str(session_id)
+        if session and session.logout_at is None:
+            session.logout_at = datetime.now(timezone.utc)
+            session.login_status = LoginStatus.EXPIRED
+            await self.db.commit()
+        return True
+
+    async def refresh_session(self, session_id: str) -> Tuple[User, str]:
+        """Validate session cookie and issue a new JWT access token.
+
+        Args:
+            session_id: Value dari cookie ``refresh_token`` (httpOnly).
+
+        Returns:
+            (user_with_roles, new_jwt_access_token)
+        """
+        session = await self.session_repo.get_by_session_id_str(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token tidak valid atau tidak ditemukan",
+            )
+
+        now = datetime.now(timezone.utc)
+
+        if session.logout_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Sesi sudah logout, silakan login kembali",
+            )
+
+        if session.expires_at and session.expires_at < now:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Sesi sudah kedaluwarsa, silakan login kembali",
+            )
+
+        user = await self.user_repo.get_by_id_with_roles(session.user_id)
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ErrorMessages.INACTIVE_USER,
+            )
+
+        new_token  = create_access_token({"sub": str(user.id)})
+        new_expires = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
+        session.token         = new_token
+        session.expires_at    = new_expires
+        session.last_activity = now
+        await self.db.commit()
+
+        logger.info(f"Token di-refresh untuk user_id={user.id} (session={session_id[:8]}…)")
+        return user, new_token

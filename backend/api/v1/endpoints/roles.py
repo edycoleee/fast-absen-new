@@ -29,6 +29,17 @@ async def list_roles(
     return list_response("Berhasil", items=[_fmt(r) for r in roles], total=len(roles))
 
 
+@router.get("/{role_id}")
+async def get_role(
+    role_id: int,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_permission(PermissionKeys.ROLES_READ)),
+):
+    svc = RoleService(RoleRepository(db))
+    role = await svc.get_role(role_id)
+    return success_response("Berhasil", data=_fmt(role))
+
+
 @router.post("", status_code=HC.CREATED)
 async def create_role(
     body: RoleCreate,

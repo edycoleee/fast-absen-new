@@ -28,9 +28,9 @@ class AbsensiService:
 
         now = datetime.now(timezone.utc)
         # Simple late check: after 08:00 local time considered terlambat
-        status = AbsensiStatus.HADIR
+        status = AbsensiStatus.PRESENT
         if now.hour >= 8 and now.minute > 0:
-            status = AbsensiStatus.TERLAMBAT
+            status = AbsensiStatus.LATE
 
         absensi = Absensi(
             id_pegawai=id_pegawai,
@@ -81,3 +81,59 @@ class AbsensiService:
         if id_pegawai:
             return await self.repo.get_by_pegawai(id_pegawai, skip, limit)
         return await self.repo.get_all(skip=skip, limit=limit)
+
+    async def get_today(self, id_pegawai: str) -> Optional[Absensi]:
+        """Return today's absensi record for a pegawai, or None."""
+        return await self.repo.get_today(id_pegawai, date.today())
+
+    async def get_history(
+        self,
+        id_pegawai: str,
+        page: int,
+        limit: int,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Tuple[List[Absensi], int]:
+        """Paginated history for a single pegawai, optionally filtered by date range."""
+        skip = (page - 1) * limit
+        return await self.repo.get_history(id_pegawai, skip, limit, start_date, end_date)
+
+    async def get_summary(
+        self,
+        id_pegawai: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> dict:
+        """Return per-status count summary for a pegawai."""
+        records = await self.repo.get_by_date_range_pegawai(id_pegawai, start_date, end_date)
+        summary: dict = {}
+        for a in records:
+            summary[a.status] = summary.get(a.status, 0) + 1
+        return {
+            "id_pegawai": id_pegawai,
+            "start_date": str(start_date) if start_date else None,
+            "end_date":   str(end_date)   if end_date   else None,
+            "total":      len(records),
+            "breakdown":  summary,
+        }
+
+    async def get_by_id(self, absensi_id: int) -> Optional[Absensi]:
+        return await self.repo.get_by_id(absensi_id)
+
+    async def delete_absensi(self, absensi_id: int) -> bool:
+        a = await self.repo.get_by_id(absensi_id)
+        if not a:
+            raise HTTPException(status_code=HC.NOT_FOUND, detail=ErrorMessages.NOT_FOUND.format("Absensi"))
+        await self.db.delete(a)
+        await self.db.commit()
+        return True
+
+    async def get_statistics(
+        self,
+        target_date: Optional[date] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        id_unit: Optional[int] = None,
+    ) -> dict:
+        """Admin-level statistics across all pegawai."""
+        return await self.repo.get_statistics(target_date, start_date, end_date, id_unit)

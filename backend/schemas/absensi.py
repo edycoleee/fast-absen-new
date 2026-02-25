@@ -17,7 +17,7 @@ class CheckOutRequest(BaseSchema):
 class AbsensiCreate(BaseSchema):
     id_pegawai: str
     tanggal: date
-    status: str = "HADIR"
+    status: str = "PRESENT"
     keterangan: Optional[str] = None
     jam_masuk: Optional[datetime] = None
     jam_keluar: Optional[datetime] = None
