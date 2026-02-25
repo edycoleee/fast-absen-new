@@ -2,21 +2,21 @@
 Tests untuk /api/v1/absensi endpoints.
 
 Endpoint yang tersedia:
-  GET    /absensi/today           → absensi hari ini milik current_user (auth + id_pegawai)
-  GET    /absensi/history         → riwayat paginated current_user (auth + id_pegawai)
-  GET    /absensi/summary         → rekap per-status current_user (auth + id_pegawai)
-  GET    /absensi/statistics      → statistik global admin (requires absensi.read)
-  GET    /absensi                 → paginated list (requires absensi.read)
-  POST   /absensi/check-in        → check-in current_user (auth + id_pegawai)
-  POST   /absensi/check-out       → check-out current_user (auth + id_pegawai)
-  GET    /absensi/{absensi_id}    → detail satu record (requires absensi.read)
-  PUT    /absensi/{absensi_id}    → update admin (requires absensi.update)
-  DELETE /absensi/{absensi_id}    → hard delete (requires absensi.delete)
+  GET    /absensi/today           → absensi hari ini milik current_user
+  GET    /absensi/history         → riwayat paginated current_user
+  GET    /absensi/summary         → rekap per-status current_user
+  GET    /absensi/statistics      → statistik global admin (absensi.read)
+  GET    /absensi                 → paginated list (absensi.read)
+  POST   /absensi/check-in        → check-in current_user
+  POST   /absensi/check-out       → check-out current_user
+  GET    /absensi/{absensi_id}    → detail satu record (absensi.read)
+  PUT    /absensi/{absensi_id}    → update admin (absensi.update)
+  DELETE /absensi/{absensi_id}    → hard delete (absensi.delete)
 
 Catatan:
   - UNIQUE constraint: 1 record per pegawai per tanggal.
   - check-in/check-out/today/history/summary menggunakan current_user.id_pegawai.
-  - conftest seeds: TST_PGW_A ↔ tst_admin, TST_PGW_U ↔ tst_user.
+  - conftest seeds: TST_PGW_A <-> tst_admin, TST_PGW_U <-> tst_user.
 """
 from httpx import AsyncClient
 from sqlalchemy import text
@@ -33,6 +33,7 @@ _PGW_USER  = "TST_PGW_U"   # tst_user
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def _delete_today_absensi(id_pegawai: str) -> None:
+    """Hapus record absensi hari ini untuk pegawai tertentu (cleanup test)."""
     async with AsyncSessionLocal() as session:
         async with session.begin():
             await session.execute(
@@ -42,6 +43,7 @@ async def _delete_today_absensi(id_pegawai: str) -> None:
 
 
 async def _delete_all_absensi(id_pegawai: str) -> None:
+    """Hapus semua record absensi untuk pegawai tertentu."""
     async with AsyncSessionLocal() as session:
         async with session.begin():
             await session.execute(
@@ -64,7 +66,6 @@ async def test_today_no_record(
     assert resp.status_code == 200
     body = resp.json()
     assert body["success"] is True
-    # Belum check-in: data None atau dict kosong
     assert not body["data"]
 
 
@@ -127,7 +128,9 @@ async def test_history_contains_checkin(
     try:
         ci = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
         absensi_id = ci.json()["data"]["id"]
-        resp = await client_with_db.get(BASE + "/history", params={"limit": 50}, headers=auth_headers_admin)
+        resp = await client_with_db.get(
+            BASE + "/history", params={"limit": 50}, headers=auth_headers_admin
+        )
         ids = [a["id"] for a in resp.json()["data"]["items"]]
         assert absensi_id in ids
     finally:
@@ -151,6 +154,7 @@ async def test_history_date_filter(
 
 
 async def test_history_no_auth(client_with_db: AsyncClient):
+    """Tanpa token → 403."""
     resp = await client_with_db.get(BASE + "/history")
     assert resp.status_code == 403
 
@@ -180,15 +184,20 @@ async def test_summary_counts_checkin(
     """Setelah check-in, summary total bertambah 1."""
     await _delete_today_absensi(_PGW_ADMIN)
     try:
-        before = (await client_with_db.get(BASE + "/summary", headers=auth_headers_admin)).json()["data"]["total"]
+        before = (
+            await client_with_db.get(BASE + "/summary", headers=auth_headers_admin)
+        ).json()["data"]["total"]
         await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        after = (await client_with_db.get(BASE + "/summary", headers=auth_headers_admin)).json()["data"]["total"]
+        after = (
+            await client_with_db.get(BASE + "/summary", headers=auth_headers_admin)
+        ).json()["data"]["total"]
         assert after == before + 1
     finally:
         await _delete_today_absensi(_PGW_ADMIN)
 
 
 async def test_summary_no_auth(client_with_db: AsyncClient):
+    """Tanpa token → 403."""
     resp = await client_with_db.get(BASE + "/summary")
     assert resp.status_code == 403
 
@@ -214,7 +223,7 @@ async def test_statistics_target_date(
     client_with_db: AsyncClient,
     auth_headers_admin: dict,
 ):
-    """Filter target_date mengembalikan data hanya untuk tanggal itu."""
+    """Filter target_date mengembalikan data dengan field date yang sesuai."""
     from datetime import date
     today = str(date.today())
     resp = await client_with_db.get(
@@ -236,438 +245,13 @@ async def test_statistics_forbidden(
 
 
 async def test_statistics_no_auth(client_with_db: AsyncClient):
+    """Tanpa token → 403."""
     resp = await client_with_db.get(BASE + "/statistics")
     assert resp.status_code == 403
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LIST  GET /absensi
-# ─────────────────────────────────────────────────────────────────────────────
-
-async def test_list_absensi_admin(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    resp = await client_with_db.get(BASE, headers=auth_headers_admin)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["success"] is True
-    assert "items" in body["data"]
-    assert "total" in body["meta"]
-    assert isinstance(body["data"]["items"], list)
-
-
-async def test_list_absensi_pagination(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    resp = await client_with_db.get(BASE, params={"page": 1, "limit": 1}, headers=auth_headers_admin)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert len(body["data"]["items"]) <= 1
-    assert body["meta"]["page"] == 1
-    assert body["meta"]["limit"] == 1
-
-
-async def test_list_absensi_item_fields(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        resp = await client_with_db.get(BASE, params={"limit": 10}, headers=auth_headers_admin)
-        items = resp.json()["data"]["items"]
-        assert len(items) > 0
-        for field in ("id", "id_pegawai", "tanggal", "status"):
-            assert field in items[0], f"Field '{field}' tidak ada"
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_list_absensi_filter_by_pegawai(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        resp = await client_with_db.get(
-            BASE, params={"id_pegawai": _PGW_ADMIN, "limit": 50}, headers=auth_headers_admin
-        )
-        assert resp.status_code == 200
-        for item in resp.json()["data"]["items"]:
-            assert item["id_pegawai"] == _PGW_ADMIN
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_list_absensi_forbidden(
-    client_with_db: AsyncClient,
-    auth_headers_user: dict,
-):
-    resp = await client_with_db.get(BASE, headers=auth_headers_user)
-    assert resp.status_code == 403
-
-
-async def test_list_absensi_no_auth(client_with_db: AsyncClient):
-    resp = await client_with_db.get(BASE)
-    assert resp.status_code == 403
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CHECK-IN  POST /absensi/check-in
-# ─────────────────────────────────────────────────────────────────────────────
-
-async def test_check_in_success(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        resp = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        assert resp.status_code == 200
-        data = resp.json()["data"]
-        assert data["id_pegawai"] == _PGW_ADMIN
-        assert data["jam_masuk"] is not None
-        assert data["status"] in ("PRESENT", "LATE")
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_check_in_with_keterangan(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        resp = await client_with_db.post(
-            BASE + "/check-in", json={"keterangan": "Test hadir"}, headers=auth_headers_admin
-        )
-        assert resp.status_code == 200
-        assert resp.json()["data"]["keterangan"] == "Test hadir"
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_check_in_duplicate_today(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        first = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        assert first.status_code == 200
-        second = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        assert second.status_code == 400
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_check_in_no_auth(client_with_db: AsyncClient):
-    resp = await client_with_db.post(BASE + "/check-in", json={})
-    assert resp.status_code == 403
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CHECK-OUT  POST /absensi/check-out
-# ─────────────────────────────────────────────────────────────────────────────
-
-async def test_check_out_success(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        resp = await client_with_db.post(BASE + "/check-out", json={}, headers=auth_headers_admin)
-        assert resp.status_code == 200
-        data = resp.json()["data"]
-        assert data["id_pegawai"] == _PGW_ADMIN
-        assert data["jam_keluar"] is not None
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_check_out_with_keterangan(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        resp = await client_with_db.post(
-            BASE + "/check-out", json={"keterangan": "Selesai kerja"}, headers=auth_headers_admin
-        )
-        assert resp.status_code == 200
-        assert resp.json()["data"]["keterangan"] == "Selesai kerja"
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_check_out_without_check_in(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    resp = await client_with_db.post(BASE + "/check-out", json={}, headers=auth_headers_admin)
-    assert resp.status_code == 400
-
-
-async def test_check_out_duplicate(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        first = await client_with_db.post(BASE + "/check-out", json={}, headers=auth_headers_admin)
-        assert first.status_code == 200
-        second = await client_with_db.post(BASE + "/check-out", json={}, headers=auth_headers_admin)
-        assert second.status_code == 400
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_check_out_no_auth(client_with_db: AsyncClient):
-    resp = await client_with_db.post(BASE + "/check-out", json={})
-    assert resp.status_code == 403
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# GET /absensi/{absensi_id}
-# ─────────────────────────────────────────────────────────────────────────────
-
-async def test_get_absensi_detail(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    """GET /{id} mengembalikan record yang benar."""
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        ci = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        absensi_id = ci.json()["data"]["id"]
-        resp = await client_with_db.get(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
-        assert resp.status_code == 200
-        data = resp.json()["data"]
-        assert data["id"] == absensi_id
-        assert data["id_pegawai"] == _PGW_ADMIN
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_get_absensi_not_found(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    resp = await client_with_db.get(f"{BASE}/9999999", headers=auth_headers_admin)
-    assert resp.status_code == 404
-
-
-async def test_get_absensi_forbidden(
-    client_with_db: AsyncClient,
-    auth_headers_user: dict,
-):
-    resp = await client_with_db.get(f"{BASE}/1", headers=auth_headers_user)
-    assert resp.status_code == 403
-
-
-async def test_get_absensi_no_auth(client_with_db: AsyncClient):
-    resp = await client_with_db.get(f"{BASE}/1")
-    assert resp.status_code == 403
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PUT /absensi/{absensi_id}
-# ─────────────────────────────────────────────────────────────────────────────
-
-async def test_update_absensi_status(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        ci = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        absensi_id = ci.json()["data"]["id"]
-        resp = await client_with_db.put(
-            f"{BASE}/{absensi_id}",
-            json={"status": "SICK", "keterangan": "Sakit hari ini"},
-            headers=auth_headers_admin,
-        )
-        assert resp.status_code == 200
-        data = resp.json()["data"]
-        assert data["status"] == "SICK"
-        assert data["keterangan"] == "Sakit hari ini"
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_update_absensi_jam_keluar(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        ci = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-        absensi_id = ci.json()["data"]["id"]
-        resp = await client_with_db.put(
-            f"{BASE}/{absensi_id}",
-            json={"jam_keluar": "2026-02-25T17:00:00+00:00"},
-            headers=auth_headers_admin,
-        )
-        assert resp.status_code == 200
-        assert resp.json()["data"]["jam_keluar"] is not None
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
-
-
-async def test_update_absensi_not_found(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    resp = await client_with_db.put(
-        f"{BASE}/9999999", json={"keterangan": "Ghost"}, headers=auth_headers_admin
-    )
-    assert resp.status_code == 404
-
-
-async def test_update_absensi_forbidden(
-    client_with_db: AsyncClient,
-    auth_headers_user: dict,
-):
-    resp = await client_with_db.put(
-        f"{BASE}/1", json={"keterangan": "Hijack"}, headers=auth_headers_user
-    )
-    assert resp.status_code == 403
-
-
-async def test_update_absensi_no_auth(client_with_db: AsyncClient):
-    resp = await client_with_db.put(f"{BASE}/1", json={"keterangan": "Ghost"})
-    assert resp.status_code == 403
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# DELETE /absensi/{absensi_id}
-# ─────────────────────────────────────────────────────────────────────────────
-
-async def test_delete_absensi_success(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    """Hard delete berhasil → record tidak bisa diambil lagi (404)."""
-    await _delete_today_absensi(_PGW_ADMIN)
-    ci = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-    absensi_id = ci.json()["data"]["id"]
-    resp = await client_with_db.delete(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
-    assert resp.status_code == 200
-    assert resp.json()["success"] is True
-    # Record tidak ada lagi
-    get_resp = await client_with_db.get(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
-    assert get_resp.status_code == 404
-
-
-async def test_delete_absensi_not_found(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    resp = await client_with_db.delete(f"{BASE}/9999999", headers=auth_headers_admin)
-    assert resp.status_code == 404
-
-
-async def test_delete_absensi_forbidden(
-    client_with_db: AsyncClient,
-    auth_headers_user: dict,
-):
-    resp = await client_with_db.delete(f"{BASE}/1", headers=auth_headers_user)
-    assert resp.status_code == 403
-
-
-async def test_delete_absensi_no_auth(client_with_db: AsyncClient):
-    resp = await client_with_db.delete(f"{BASE}/1")
-    assert resp.status_code == 403
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# FULL FLOW: check-in → detail → history → summary → check-out → delete
-# ─────────────────────────────────────────────────────────────────────────────
-
-async def test_full_flow(
-    client_with_db: AsyncClient,
-    auth_headers_admin: dict,
-):
-    """Full flow: check-in → today → detail → history → summary → check-out → delete."""
-    await _delete_today_absensi(_PGW_ADMIN)
-
-    # 1. Check-in
-    ci = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
-    assert ci.status_code == 200
-    absensi_id = ci.json()["data"]["id"]
-
-    # 2. Today returns record
-    today_resp = await client_with_db.get(BASE + "/today", headers=auth_headers_admin)
-    assert today_resp.json()["data"]["id"] == absensi_id
-
-    # 3. Detail
-    detail_resp = await client_with_db.get(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
-    assert detail_resp.status_code == 200
-
-    # 4. History contains it
-    history_ids = [a["id"] for a in (await client_with_db.get(
-        BASE + "/history", params={"limit": 50}, headers=auth_headers_admin
-    )).json()["data"]["items"]]
-    assert absensi_id in history_ids
-
-    # 5. Summary total >= 1
-    summary = (await client_with_db.get(BASE + "/summary", headers=auth_headers_admin)).json()["data"]
-    assert summary["total"] >= 1
-
-    # 6. Check-out
-    co = await client_with_db.post(BASE + "/check-out", json={}, headers=auth_headers_admin)
-    assert co.status_code == 200
-    assert co.json()["data"]["jam_keluar"] is not None
-
-    # 7. Delete
-    del_resp = await client_with_db.delete(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
-    assert del_resp.status_code == 200
-    assert (await client_with_db.get(f"{BASE}/{absensi_id}", headers=auth_headers_admin)).status_code == 404
-
-
-BASE = "/api/v1/absensi"
-
-# id_pegawai yang di-seed oleh conftest
-_PGW_ADMIN = "TST_PGW_A"   # tst_admin
-_PGW_USER  = "TST_PGW_U"   # tst_user
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# DB helpers (tidak ada DELETE endpoint; hapus langsung dari DB)
-# ─────────────────────────────────────────────────────────────────────────────
-
-async def _delete_today_absensi(id_pegawai: str) -> None:
-    """Hapus record absensi hari ini untuk pegawai tertentu (cleanup test)."""
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await session.execute(
-                text(
-                    "DELETE FROM absensi "
-                    "WHERE id_pegawai = :p AND tanggal = CURRENT_DATE"
-                ),
-                {"p": id_pegawai},
-            )
-
-
-async def _delete_all_absensi(id_pegawai: str) -> None:
-    """Hapus semua record absensi untuk pegawai tertentu."""
-    async with AsyncSessionLocal() as session:
-        async with session.begin():
-            await session.execute(
-                text("DELETE FROM absensi WHERE id_pegawai = :p"),
-                {"p": id_pegawai},
-            )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# LIST  GET /api/v1/absensi
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_list_absensi_admin(
@@ -705,7 +289,6 @@ async def test_list_absensi_item_fields(
     auth_headers_admin: dict,
 ):
     """Setiap item memiliki field id, id_pegawai, tanggal, status."""
-    # Buat record agar ada isi
     await _delete_today_absensi(_PGW_ADMIN)
     try:
         await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
@@ -759,7 +342,7 @@ async def test_list_absensi_no_auth(client_with_db: AsyncClient):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CHECK-IN  POST /api/v1/absensi/check-in
+# CHECK-IN  POST /absensi/check-in
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_check_in_success(
@@ -831,7 +414,6 @@ async def test_check_in_duplicate_today(
             BASE + "/check-in", json={}, headers=auth_headers_admin
         )
         assert first.status_code == 200
-
         second = await client_with_db.post(
             BASE + "/check-in", json={}, headers=auth_headers_admin
         )
@@ -847,7 +429,7 @@ async def test_check_in_no_auth(client_with_db: AsyncClient):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CHECK-OUT  POST /api/v1/absensi/check-out
+# CHECK-OUT  POST /absensi/check-out
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_check_out_success(
@@ -912,7 +494,6 @@ async def test_check_out_duplicate(
             BASE + "/check-out", json={}, headers=auth_headers_admin
         )
         assert first.status_code == 200
-
         second = await client_with_db.post(
             BASE + "/check-out", json={}, headers=auth_headers_admin
         )
@@ -928,7 +509,53 @@ async def test_check_out_no_auth(client_with_db: AsyncClient):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# UPDATE  PUT /api/v1/absensi/{absensi_id}
+# GET /absensi/{absensi_id}
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def test_get_absensi_detail(
+    client_with_db: AsyncClient,
+    auth_headers_admin: dict,
+):
+    """GET /{id} mengembalikan record yang benar."""
+    await _delete_today_absensi(_PGW_ADMIN)
+    try:
+        ci = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
+        absensi_id = ci.json()["data"]["id"]
+        resp = await client_with_db.get(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["id"] == absensi_id
+        assert data["id_pegawai"] == _PGW_ADMIN
+    finally:
+        await _delete_today_absensi(_PGW_ADMIN)
+
+
+async def test_get_absensi_not_found(
+    client_with_db: AsyncClient,
+    auth_headers_admin: dict,
+):
+    """ID tidak ada → 404."""
+    resp = await client_with_db.get(f"{BASE}/9999999", headers=auth_headers_admin)
+    assert resp.status_code == 404
+
+
+async def test_get_absensi_forbidden(
+    client_with_db: AsyncClient,
+    auth_headers_user: dict,
+):
+    """tst_user tidak punya absensi.read → 403."""
+    resp = await client_with_db.get(f"{BASE}/1", headers=auth_headers_user)
+    assert resp.status_code == 403
+
+
+async def test_get_absensi_no_auth(client_with_db: AsyncClient):
+    """Tanpa token → 403."""
+    resp = await client_with_db.get(f"{BASE}/1")
+    assert resp.status_code == 403
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PUT /absensi/{absensi_id}
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_update_absensi_status(
@@ -938,11 +565,10 @@ async def test_update_absensi_status(
     """Admin bisa mengubah status absensi via PUT (200)."""
     await _delete_today_absensi(_PGW_ADMIN)
     try:
-        check_in_resp = await client_with_db.post(
+        ci = await client_with_db.post(
             BASE + "/check-in", json={}, headers=auth_headers_admin
         )
-        absensi_id = check_in_resp.json()["data"]["id"]
-
+        absensi_id = ci.json()["data"]["id"]
         resp = await client_with_db.put(
             f"{BASE}/{absensi_id}",
             json={"status": "SICK", "keterangan": "Sakit hari ini"},
@@ -963,11 +589,10 @@ async def test_update_absensi_jam_keluar(
     """Admin bisa mengisi jam_keluar manual via PUT."""
     await _delete_today_absensi(_PGW_ADMIN)
     try:
-        check_in_resp = await client_with_db.post(
+        ci = await client_with_db.post(
             BASE + "/check-in", json={}, headers=auth_headers_admin
         )
-        absensi_id = check_in_resp.json()["data"]["id"]
-
+        absensi_id = ci.json()["data"]["id"]
         resp = await client_with_db.put(
             f"{BASE}/{absensi_id}",
             json={"jam_keluar": "2026-02-25T17:00:00+00:00"},
@@ -1012,40 +637,99 @@ async def test_update_absensi_no_auth(client_with_db: AsyncClient):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# FULL FLOW: check-in → check-out → tampil di list
+# DELETE /absensi/{absensi_id}
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def test_full_checkin_checkout_flow(
+async def test_delete_absensi_success(
     client_with_db: AsyncClient,
     auth_headers_admin: dict,
 ):
-    """Full flow: check-in → record di list → check-out → jam_keluar terisi."""
+    """Hard delete berhasil → record tidak bisa diambil lagi (404)."""
     await _delete_today_absensi(_PGW_ADMIN)
-    try:
-        # 1. Check-in
-        ci = await client_with_db.post(
-            BASE + "/check-in", json={}, headers=auth_headers_admin
-        )
-        assert ci.status_code == 200
-        record = ci.json()["data"]
-        assert record["jam_masuk"] is not None
-        assert record["jam_keluar"] is None
-        absensi_id = record["id"]
+    ci = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
+    absensi_id = ci.json()["data"]["id"]
 
-        # 2. Muncul di list
-        list_resp = await client_with_db.get(
-            BASE,
-            params={"id_pegawai": _PGW_ADMIN, "limit": 10},
-            headers=auth_headers_admin,
-        )
-        ids = [a["id"] for a in list_resp.json()["data"]["items"]]
-        assert absensi_id in ids
+    resp = await client_with_db.delete(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
 
-        # 3. Check-out
-        co = await client_with_db.post(
-            BASE + "/check-out", json={}, headers=auth_headers_admin
-        )
-        assert co.status_code == 200
-        assert co.json()["data"]["jam_keluar"] is not None
-    finally:
-        await _delete_today_absensi(_PGW_ADMIN)
+    get_resp = await client_with_db.get(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
+    assert get_resp.status_code == 404
+
+
+async def test_delete_absensi_not_found(
+    client_with_db: AsyncClient,
+    auth_headers_admin: dict,
+):
+    """Delete ID yang tidak ada → 404."""
+    resp = await client_with_db.delete(f"{BASE}/9999999", headers=auth_headers_admin)
+    assert resp.status_code == 404
+
+
+async def test_delete_absensi_forbidden(
+    client_with_db: AsyncClient,
+    auth_headers_user: dict,
+):
+    """tst_user tidak punya absensi.delete → 403."""
+    resp = await client_with_db.delete(f"{BASE}/1", headers=auth_headers_user)
+    assert resp.status_code == 403
+
+
+async def test_delete_absensi_no_auth(client_with_db: AsyncClient):
+    """Tanpa token → 403."""
+    resp = await client_with_db.delete(f"{BASE}/1")
+    assert resp.status_code == 403
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FULL FLOW
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def test_full_flow(
+    client_with_db: AsyncClient,
+    auth_headers_admin: dict,
+):
+    """Full flow: check-in -> today -> detail -> history -> summary -> check-out -> delete."""
+    await _delete_today_absensi(_PGW_ADMIN)
+
+    # 1. Check-in
+    ci = await client_with_db.post(BASE + "/check-in", json={}, headers=auth_headers_admin)
+    assert ci.status_code == 200
+    absensi_id = ci.json()["data"]["id"]
+
+    # 2. Today returns record
+    today_resp = await client_with_db.get(BASE + "/today", headers=auth_headers_admin)
+    assert today_resp.json()["data"]["id"] == absensi_id
+
+    # 3. Detail
+    detail_resp = await client_with_db.get(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
+    assert detail_resp.status_code == 200
+
+    # 4. History contains it
+    history_ids = [
+        a["id"]
+        for a in (
+            await client_with_db.get(
+                BASE + "/history", params={"limit": 50}, headers=auth_headers_admin
+            )
+        ).json()["data"]["items"]
+    ]
+    assert absensi_id in history_ids
+
+    # 5. Summary total >= 1
+    summary = (
+        await client_with_db.get(BASE + "/summary", headers=auth_headers_admin)
+    ).json()["data"]
+    assert summary["total"] >= 1
+
+    # 6. Check-out
+    co = await client_with_db.post(BASE + "/check-out", json={}, headers=auth_headers_admin)
+    assert co.status_code == 200
+    assert co.json()["data"]["jam_keluar"] is not None
+
+    # 7. Delete
+    del_resp = await client_with_db.delete(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
+    assert del_resp.status_code == 200
+    assert (
+        await client_with_db.get(f"{BASE}/{absensi_id}", headers=auth_headers_admin)
+    ).status_code == 404

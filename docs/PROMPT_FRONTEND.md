@@ -48,13 +48,6 @@ frontend/
 │   │   │   ├── PermissionRepository.js
 │   │   │   ├── PegawaiRepository.js
 │   │   │   ├── UnitRepository.js
-│   │   │   ├── ShiftKelompokRepository.js
-│   │   │   ├── AppConfigRepository.js            # GET + PUT /app-config/ (singleton)
-│   │   │   ├── PegawaiShiftKelompokRepository.js # tipe_shift: SHIFT|NON_SHIFT
-│   │   │   ├── RosterUploadBatchRepository.js
-│   │   │   ├── RosterShiftRepository.js
-│   │   │   ├── PenilaianShiftAbsensiRepository.js
-│   │   │   ├── ApprovalRepository.js
 │   │   │   ├── AbsensiRepository.js
 │   │   │   ├── SessionsRepository.js
 │   │   │   ├── StatsRepository.js
@@ -71,12 +64,6 @@ frontend/
 │   │   │   ├── useRoles.js
 │   │   │   ├── usePegawai.js
 │   │   │   ├── useUnits.js
-│   │   │   ├── useShiftKelompok.js
-│   │   │   ├── useAppConfig.js           # Global evaluation config
-│   │   │   ├── usePegawaiShiftKelompok.js
-│   │   │   ├── useRosterUploadBatch.js
-│   │   │   ├── useRosterShift.js
-│   │   │   ├── usePenilaianShiftAbsensi.js
 │   │   │   ├── useAbsensi.js
 │   │   │   ├── useSessionHeartbeat.js    # Heartbeat ping backend setiap N menit
 │   │   │   └── index.js
@@ -105,15 +92,6 @@ frontend/
 │   │       │   ├── PermissionsPage.jsx
 │   │       │   ├── UnitsPage.jsx
 │   │       │   ├── EmployeesPage.jsx           # Pegawai CRUD + foto upload
-│   │       │   ├── ShiftKelompokPage.jsx        # Master klasifikasi roster
-│   │       │   ├── AppConfigPage.jsx            # ⚙️ Config evaluasi global (form GET+PUT)
-│   │       │   ├── PegawaiShiftKelompokPage.jsx # tipe_shift per pegawai + import Excel
-│   │       │   ├── RosterUploadBatchPage.jsx
-│   │       │   ├── RosterAdapterPage.jsx        # Upload + preview sebelum import
-│   │       │   ├── RosterShiftPage.jsx
-│   │       │   ├── PenilaianShiftAbsensiPage.jsx
-│   │       │   ├── AttendanceMonitorPage.jsx    # Admin monitoring absensi
-│   │       │   ├── ApprovalPage.jsx
 │   │       │   ├── SessionMonitorPage.jsx
 │   │       │   ├── KpiUnitRolePage.jsx
 │   │       │   └── index.js
@@ -136,9 +114,17 @@ frontend/
 
 ### 3. Routing (App.jsx)
 
+Landing : 
+card 1 : login-face (user) + foto
+
+card 2 : login ka_unit
+
+card 3 : login admin
+
 Dua jalur autentikasi terpisah:
-- Admin: `/login-admin` → `PrivateRoute` → `Layout` (sidebar)
-- Pegawai: `/login-absensi` → `AttendancePrivateRoute` → halaman absensi (tanpa sidebar)
+- Admin: `/login-admin` → `AdminPrivateRoute` 
+- Pegawai: `/login-absensi` → `AttendancePrivateRoute`
+- Ka_unit: `/login-ka_unit` → `KaUnitrivateRoute`
 
 `SessionHeartbeatRunner` adalah komponen kecil di dalam `AuthProvider` yang memanggil `useSessionHeartbeat(5)`.
 
@@ -164,16 +150,8 @@ function App() {
             <Route path="permissions"       element={<PermissionsPage />} />
             <Route path="unit"              element={<UnitsPage />} />
             <Route path="pegawai"           element={<EmployeesPage />} />
-            <Route path="shift-kelompok"    element={<ShiftKelompokPage />} />
-            <Route path="app-config"        element={<AppConfigPage />} />
-            <Route path="shift-pegawai"     element={<PegawaiShiftKelompokPage />} />
-            <Route path="roster-upload"     element={<RosterUploadBatchPage />} />
-            <Route path="roster-adapter"    element={<RosterAdapterPage />} />
-            <Route path="roster-shift"      element={<RosterShiftPage />} />
-            <Route path="penilaian-shift"   element={<PenilaianShiftAbsensiPage />} />
             <Route path="absensi"           element={<AttendanceMonitorPage />} />
             <Route path="sessions-monitor"  element={<SessionMonitorPage />} />
-            <Route path="approval"          element={<ApprovalPage />} />
             <Route path="rekap-unit-role"   element={<KpiUnitRolePage />} />
           </Route>
 
@@ -269,9 +247,7 @@ const buildMenuItems = (menuGuard = {}) => {
 
   // Operational — ikuti menus.*.visible dari server
   if (menus.dashboard?.visible)           items.push({ path: '/dashboard',      label: 'Dashboard',         icon: '📊' });
-  if (menus.kpi_unit_role?.visible)       items.push({ path: '/rekap-unit-role', label: 'Rekap Unit/Role',  icon: '📈' });
   if (menus.monitoring_absensi?.visible)  items.push({ path: '/absensi',         label: 'Monitoring Absensi', icon: '📝' });
-  if (menus.approval?.visible)            items.push({ path: '/approval',        label: 'Approval',          icon: '✅' });
   if (menus.user_sessions?.visible)       items.push({ path: '/sessions-monitor', label: 'Monitor Sesi',    icon: '📡' });
 
   // Admin management — hanya jika is_admin
@@ -282,13 +258,6 @@ const buildMenuItems = (menuGuard = {}) => {
       { path: '/permissions',     label: 'Permissions',         icon: '🔑' },
       { path: '/unit',            label: 'Unit',                icon: '🏢' },
       { path: '/pegawai',         label: 'Pegawai',             icon: '👨‍💼' },
-      { path: '/shift-kelompok',  label: 'Shift Kelompok',      icon: '🔄' },
-      { path: '/app-config',      label: 'Konfigurasi Absensi', icon: '⚙️' },
-      { path: '/shift-pegawai',   label: 'Shift Pegawai',       icon: '👤' },
-      { path: '/roster-upload',   label: 'Roster Upload',       icon: '📄' },
-      { path: '/roster-adapter',  label: 'Roster Adapter',      icon: '🧩' },
-      { path: '/roster-shift',    label: 'Roster Shift',        icon: '🗓️' },
-      { path: '/penilaian-shift', label: 'Penilaian Shift',     icon: '⚖️' },
     );
   }
 
@@ -307,13 +276,6 @@ const buildMenuItems = (menuGuard = {}) => {
 | `PermissionRepository` | `CRUD /permissions/` |
 | `PegawaiRepository` | `CRUD /pegawai/` + foto upload |
 | `UnitRepository` | `CRUD /unit/` |
-| `ShiftKelompokRepository` | `CRUD /shift-kelompok/` |
-| `AppConfigRepository` | `GET /app-config/`, `PUT /app-config/` |
-| `PegawaiShiftKelompokRepository` | `CRUD /pegawai-shift-kelompok/` + `POST /import` + `GET /template/download` |
-| `RosterUploadBatchRepository` | `CRUD /roster-upload-batch/` |
-| `RosterShiftRepository` | `CRUD /roster-shift/` + import Excel |
-| `PenilaianShiftAbsensiRepository` | `POST /penilaian-shift-absensi/evaluate` |
-| `ApprovalRepository` | `CRUD /approval-pengajuan-absensi/` |
 | `AbsensiRepository` | `GET /absensi/`, `POST /absensi/check-in`, `PUT /absensi/check-out` |
 | `SessionsRepository` | `GET /user-sessions/` |
 | `StatsRepository` | `GET /stats/` |
@@ -415,9 +377,6 @@ Buatkan dengan struktur lengkap, jangan skip file apapun!
 - [ ] `PrivateRoute` (admin) + `AttendancePrivateRoute` (pegawai)
 - [ ] Landing page + `AdminLoginPage` + `AttendanceLoginPage`
 - [ ] Session heartbeat (`useSessionHeartbeat` + `SessionHeartbeatRunner` di App.jsx)
-- [ ] `AppConfigRepository` + `useAppConfig` + `AppConfigPage` (form GET+PUT) ✅
-- [ ] **TIDAK ADA** `ShiftKelompokAturanRepository/Page/Hook` ❌
-- [ ] `PegawaiShiftKelompokPage` pakai `tipe_shift: SHIFT|NON_SHIFT` (dropdown, bukan FK)
 - [ ] Semua 16 repository sesuai tabel endpoint mapping
 - [ ] Layout responsive: hamburger mobile + fixed sidebar desktop
 - [ ] Tailwind setup (`tailwind.config.js`, `postcss.config.js`, `@tailwind` di `index.css`)
@@ -427,8 +386,6 @@ Buatkan dengan struktur lengkap, jangan skip file apapun!
 ## 🔑 Poin Kritis
 
 1. **menu_guard dari backend** — sidebar dibangun dari `menu_guard.menus.*.visible`, jangan hardcode
-2. **AppConfig singleton** — satu form GET/PUT, tidak ada list/create/delete/table
-3. **tipe_shift** — dropdown 2 pilihan saja, tidak perlu lookup ke tabel `shift_kelompok`
 4. **withCredentials: true** — wajib di axios untuk refresh token via httpOnly cookie
 5. **`auth:user-refreshed` event** — AuthContext harus listen event ini agar state sync setelah auto-refresh
 6. **Session heartbeat** — aktif saat user login, berhenti saat logout

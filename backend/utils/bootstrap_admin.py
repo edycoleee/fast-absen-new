@@ -35,7 +35,7 @@ async def bootstrap_superadmin(db: AsyncSession) -> None:
                 tempat_lahir=settings.ADMIN_TEMPAT_LAHIR,
                 tanggal_lahir=tanggal_lahir,
                 alamat=settings.ADMIN_ALAMAT,
-                status=settings.ADMIN_STATUS,
+                is_active=True,
             )
             db.add(pegawai)
             await db.flush()

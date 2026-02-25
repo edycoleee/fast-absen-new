@@ -68,6 +68,12 @@ cp .env.example .env
 python run.py
 # atau
 uvicorn main:app --reload
+
+# Port Already in Use
+lsof -ti:8000 | xargs kill -9  # Kill process
+# Or use different port
+uvicorn main:app --port 8000
+
 ```
 
 Dokumentasi API tersedia di: http://localhost:8000/docs
